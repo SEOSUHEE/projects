@@ -14,4 +14,3 @@ encoded = base64.b64encode(raw.encode("utf-8")).decode("utf-8")
 auth_header = f"Basic {encoded}"
 
 print(auth_header)
-
