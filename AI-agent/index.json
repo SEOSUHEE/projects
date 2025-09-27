@@ -1,0 +1,64 @@
+{
+    "settings" : {
+        "index.knn" : true,
+        "analysis": {
+            "analyzer": {
+                "my_nori": {
+                    "tokenizer": "nori_mixed",
+                    "filter": [
+                        "lowercase"
+                    ]
+                }
+            },
+            "tokenizer":{ 
+                "nori_none": {
+                    "type": "nori_tokenizer",
+                    "decompound_mode": "none"
+                },
+                "nori_mixed": {
+                    "type": "nori_tokenizer",
+                    "decompound_mode": "mixed"
+                }
+            }
+        }
+    },
+    "mappings" : {
+        "properties" : {
+            "metadata": {
+                "properties": {
+                    "file_name": {"type":"text"},
+                    "s3_file_path" : {"type":"text"},
+                    "category": {"type":"text"},
+                    "last_modified": {"type": "text"}
+                }
+            },
+            "page_id" : {
+                "type" : "text"
+            },
+            "page_num" : {
+                "type" : "text"
+            },
+            "page_text" : {
+                "type" : "text",
+                "analyzer" : "my_nori"
+            },
+            "page_vector" : {
+                "type" : "knn_vector",
+                "dimension" : 1024,
+                "similarity" : "cosine"
+            },
+            "summary_text" : {
+                "type" : "text",
+                "analyzer" : "my_nori"
+            },
+            "summary_vector" : {
+                "type" : "knn_vector",
+                "dimension" : 1024,
+                "similarity" : "cosine"
+            },
+            "description" : {
+                "type" : "text"
+            }
+        }
+    }
+}
