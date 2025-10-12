@@ -4,13 +4,16 @@ from pyspark.sql.functions import lit
 import pytz
 import requests
 
-workspace_url = "https://dbc.cloud.databricks.com"  #워크스페이스
-token = "dddddddddddddddddddd" #개인 유저 토큰, 만료 730일 -> 운영자 정보로 변경 필요
-headers = {'Authorization' : f'Bearer {token}','Content-Type' : 'application/json'} #데이터브릭스 api 호출 시 헤더 인증
+env = dbutils.widgets.get("env")
+workspace_url = dbutils.secrets.get(f"{env}-workspace-information", "workspace_url")
+token = dbutils.secrets.get(f"{env}-workspace-information", "token")
+
 spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true") #컬럼명 기준으로 자동 매칭되도록 설정
 
 api_url = f'{workspace_url}/api/2.2/jobs/runs/list' #실행한 job 리스트를 가져오는 데이터브릭스 api
 params = {'active_only' : 'true'} #접근 활성화
+headers = {'Authorization' : f'Bearer {token}','Content-Type' : 'application/json'} #데이터브릭스 api 호출 시 헤더 인증
+
 job_id = dbutils.widgets.get("job_id") #내가 실행한 job에 해당하는 정보만 가져옴
 
 try:
@@ -26,23 +29,28 @@ except Exception as error:
     raise error 
 
 
-try:
-    response = requests.get(
-        f"{workspace_url}/api/2.2/jobs/runs/get?run_id={job_run_id}",
-        headers={"Authorization": f"Bearer {token}"}
-    )
+
+all_tasks = []
+page_token = None
+
+while True:
+    url = f"{workspace_url}/api/2.2/jobs/runs/get?run_id={job_run_id}" if page_token is None else f"{workspace_url}/api/2.2/jobs/runs/get?run_id={job_run_id}&page_token={page_token}"
+    response = requests.get(url, headers=headers)
 
     data = response.json()
-    tasks = data.get("tasks", []) #금번 실행한 JOB의 task 정보 뽑아오기
-    rows = []
+    all_tasks.extend(data.get("tasks", []))
 
-except Exception as error:
-    raise error
+    # 다음 페이지 토큰 있으면 계속, 없으면 종료
+    page_token = data.get("next_page_token")
+    if not page_token:
+        break
 
 seoul = pytz.timezone('Asia/Seoul')
 now_seoul = datetime.now(seoul)
 
-for task in tasks:
+rows = []
+
+for task in all_tasks:
     task_key = task.get("task_key")
     
     if task_key == "task-log":
@@ -78,20 +86,21 @@ for task in tasks:
     })
 
 df = spark.createDataFrame(rows)
-
 first_job_nm = df.select("job_nm").first()["job_nm"]  # 첫 행의 job_nm 값 가져오기
 
-if "dev" in first_job_nm :
+if env == "dev":
     log_catalog = "lcc_dap_dev"
 else :
     log_catalog = "lcc_dap_prd"
 
-
 if "lam" in first_job_nm :
     log_table = "lam_log_table"
     log_schema = "lam_etl_log"
-else :
+elif "lcc" in first_job_nm :
     log_table = "lcc_log_table"
     log_schema = "lcc_etl_log"
+elif "common" in first_job_nm :
+    log_table = "common_log_table"
+    log_schema = "common_etl_log"
 
 df.write.mode("append").saveAsTable(f"{log_catalog}.{log_schema}.{log_table}")
