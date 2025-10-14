@@ -7,37 +7,43 @@ factory = "" #공장 : lctj, lcdg...
 
 table = ""
 
-%run /Workspace/Shared/Common/CommonUtils
-
+%run /Workspace/Shared/Central/CommonUtils
 
 import boto3
 import json
 from datetime import datetime, timedelta
 import pytz
-from pyspark.sql.functions import lit
-import gc
+from pyspark.sql.functions import lit, to_timestamp
 from delta.tables import DeltaTable
 
-# 조건에 맞는 연결 정보 가져오기 ㅣ ip, port, db, user, password, schema
-get_connection_info(env)
+config = GlobalConfig()
+if env == "dev":
+    workspace = "lcc_dap_dev"
+    target_catalog = f"{catalog}_dev"    
+else:    
+    workspace = "lcc_dap_prd"
+    target_catalog = f"{catalog}_prd"    
+
+# 연결 정보 가져오기 ㅣ ip, port, db, user, password, schema
+mssql_info = get_connection_info(env, catalog, system, factory)
 
 # 증분 데이터 수집 select
-ingest_data() 
+df, select_cnt, src_path, target_table, load_mode, load_dtm = ingest_data(mssql_info)
 
 # 수집한 데이터 적재하기
-load_data()
+insert_cnt = load_data(df, target_table, load_mode, load_dtm)
 
 # 수집한 데이터 개수 VS 적재한 데이터 개수 ㅣ 검증
-check_etl_cnt()
+check_etl_cnt(select_cnt, insert_cnt)
 
 #### 로그 적재를 위해 실행 결과 넘겨주기
 dbutils.jobs.taskValues.set(f"task_result", {
-    "sel_cnt": sel_cnt,
-    "int_cnt": int_cnt,
+    "sel_cnt": select_cnt,
+    "int_cnt": insert_cnt,
     "src_path": src_path,
     "tgt_path": target_table,
     "task_step": stage,
-    "batch_start_dtm": batch_start_dtm,
-    "batch_end_dtm": batch_end_dtm,
+    "batch_start_dtm": config.date_info['batch_start_dtm'],
+    "batch_end_dtm": config.date_info['batch_start_dtm'],
     "system": system
 })
