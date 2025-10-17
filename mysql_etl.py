@@ -17,7 +17,7 @@ password = "password!"
 s3_root_path = "s3://bucket/gluebucket/MSSQL/aaaa"
 
 
-table_list = ["ITF_M2E_MATERIAL_GOOD_ISSUE", "ITF_M2E_PRODUCTION_CONFIRM", "ITF_M2E_PRODUCTION_GOOD_RECEIPT"]
+table_list = ["ITF_MATERIAL_GOOD_ISSUE", "ITF_PRODUCTION_CONFIRM", "PRODUCTION_GOOD_RECEIPT"]
 
 for table in table_list :
   spark = SparkSession.builder.appName("MSSQLGlueSpark").getOrCreate()
